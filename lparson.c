@@ -10,6 +10,10 @@ static int encode( lua_State *L )
     return 1;
 }
 
+static int decode( lua_State *L )
+{
+    return 0
+}
 ////////////////////////LIBRARY INITIALISATION FUNCTION ////////////////////////
 
 static const luaL_Reg lua_parson_lib[] =
