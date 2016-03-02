@@ -10,4 +10,4 @@ string to table
 Json.decode( "xxxxx",comment )
 Json.decode_file( "fname",comment )
 ]]
-print( Json.encode({}) )
+print( Json.encode( {} ) )
