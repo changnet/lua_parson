@@ -28,5 +28,9 @@ local tb =
 {
     ["abc"] = 999,
     ["efg"] = "kdfajsfjieofjadaf;dsfdsakfjasdlkfja;lsf", 
+    [9999]  = 
+    {
+        ["zzz"] = 987890,
+    }
 }
-print( Json.encode( tb ) )
+print( Json.encode( tb,true ) )
