@@ -114,7 +114,36 @@ static inline JSON_Value *encode_value( lua_State *L,int index )
 
 static JSON_Value *encode_invalid_key_array( lua_State *L,int index )
 {
-    return 0;
+    JSON_Status st = 0;
+    JSON_Value *val = json_value_init_array();
+    JSON_Array *root_array = json_value_get_array( val );
+    
+    int stack_top = lua_gettop( L );
+    lua_pushnil( L );
+    while ( lua_next( L, -2 ) != 0 )
+    {
+        JSON_Value *array_val = (JSON_Value*)0;
+        array_val =  encode_value( L,stack_top + 2 );
+        if ( !array_val )
+        {
+            lua_pop( L,1 );
+            json_value_free( val );
+            return 0;
+        }
+        
+        st = json_array_append_value( root_array,array_val );
+        if ( JSONSuccess != st )
+        {
+            lua_pop( L,1 );
+            json_value_free( val );
+            return 0;
+        }
+
+        lua_pop( L, 1 );
+    }
+    
+    assert( val );
+    return val;
 }
 
 static JSON_Value *encode_array( lua_State *L,int index,int max_index )
@@ -247,7 +276,13 @@ static JSON_Value *encode_table( lua_State *L,int index )
         return (JSON_Value *)0;
     }
     
-    if ( array ) return encode_array( L,index,max_index );
+    if ( array )
+    {
+        if ( max_index > 0 )
+            return encode_array( L,index,max_index );
+        else
+            return encode_invalid_key_array( L,index );
+    }
     
     return encode_object( L,index );
 }
@@ -288,6 +323,46 @@ static int encode( lua_State *L )
     return 1;
 }
 
+static int encode_to_file( lua_State *L )
+{
+    int pretty = 0;
+    JSON_Value *val;
+    JSON_Status st = 0;
+    const char *path = 0;
+
+    if ( lua_type( L,1 ) != LUA_TTABLE )
+    {
+        pmsg = "lua_parson encode,argument #1 table expect";
+        lua_parson_error( L );
+        return 0;
+    }
+    
+    path = luaL_checkstring( L,2 );
+    pretty = lua_toboolean( L,3 );
+    lua_settop( L,1 );  /* remove path,pretty,only table in stack now */
+
+    val = encode_table( L,1 );
+    if ( !val )
+    {
+        lua_parson_error( L );
+        return 0;
+    }
+
+    if ( pretty )
+        st = json_serialize_to_file_pretty( val,path );
+    else
+        st = json_serialize_to_file( val,path );
+
+    json_value_free( val );
+
+    if ( JSONSuccess != st )
+        lua_pushboolean( L,0 );
+    else
+        lua_pushboolean( L,1 );
+
+    return 1;
+}
+
 static int decode( lua_State *L )
 {
     return 0;
@@ -299,6 +374,7 @@ static const luaL_Reg lua_parson_lib[] =
 {
     {"encode", encode},
     {"decode", decode},
+    {"encode_to_file", encode_to_file},
     {NULL, NULL}
 };
 

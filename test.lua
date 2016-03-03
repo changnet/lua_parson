@@ -24,6 +24,15 @@ local tb =
 }
 ]]
 
+local function make_array( tb )
+    local _tb = tb or {}
+    local mt = getmetatable( _tb ) or {}
+    rawset( mt,"__array",true )
+    setmetatable( _tb,mt )
+    
+    return _tb
+end
+
 local tb = 
 {
     ["abc"] = 999,
@@ -36,6 +45,13 @@ local tb =
     ["sparse"] = 
     {
         [10] = 8787,
+    },
+    ["invalid_key"] = 
+    {
+        [88987.00998] = 98766,
+        ["dfeadfewa"] = "dfkekjdudkejdn",
     }
 }
-print( Json.encode( tb,true ) )
+
+make_array( tb.invalid_key )
+print( Json.encode_to_file( tb,"test.json",true ) )

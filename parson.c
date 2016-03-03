@@ -1245,6 +1245,7 @@ JSON_Status json_serialize_to_file(const JSON_Value *value, const char *filename
             return_code = JSONFailure;
         }
     }
+    else return_code = JSONFailure;
     json_free_serialized_string(serialized_string);
     return return_code;
 }
@@ -1300,6 +1301,7 @@ JSON_Status json_serialize_to_file_pretty(const JSON_Value *value, const char *f
             return_code = JSONFailure;
         }
     }
+    else return_code = JSONFailure;
     json_free_serialized_string(serialized_string);
     return return_code;
 }
