@@ -502,6 +502,39 @@ static int decode( lua_State *L )
     return return_code;
 }
 
+static int decode_from_file( lua_State *L )
+{
+    int return_code = 0;
+    JSON_Value *val = (JSON_Value*)0;
+    const char *path = luaL_checkstring( L,1 );
+    int comment = lua_toboolean( L,2 );
+    
+    assert( path );
+    if ( comment )
+        val = json_parse_file_with_comments( path );
+    else
+        val = json_parse_file( path );
+    if ( !val )
+    {
+        pmsg = "invalid json string";
+        lua_parson_error( L );
+        return 0;
+    }
+    
+    return_code = decode_json_value( L,val );
+    json_value_free( val );
+    
+    if ( return_code < 0 )
+    {
+        lua_parson_error( L );
+        return 0;
+    }
+    
+    /* decode string "null",0 == return_code */
+    assert( 0 == return_code || 1 == return_code );
+    return return_code;
+}
+
 /* ====================LIBRARY INITIALISATION FUNCTION======================= */
 
 static const luaL_Reg lua_parson_lib[] =
@@ -509,6 +542,7 @@ static const luaL_Reg lua_parson_lib[] =
     {"encode", encode},
     {"decode", decode},
     {"encode_to_file", encode_to_file},
+    {"decode_from_file", decode_from_file},
     {NULL, NULL}
 };
 
