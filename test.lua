@@ -31,6 +31,11 @@ local tb =
     [9999]  = 
     {
         ["zzz"] = 987890,
+    },
+    ["ay"] = { 9,8,5,"dfeadfea" },
+    ["sparse"] = 
+    {
+        [10] = 8787,
     }
 }
 print( Json.encode( tb,true ) )

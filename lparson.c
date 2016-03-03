@@ -45,6 +45,7 @@ static int is_array( lua_State *L,int index,int *array,int *max_index )
         /* array index must be interger and >= 1 */
         if ( lua_type( L, -2 ) != LUA_TNUMBER )
         {
+            *max_index = -1;
             lua_pop( L,2 ); /* pop both key and value */
             return 0;
         }
@@ -52,15 +53,18 @@ static int is_array( lua_State *L,int index,int *array,int *max_index )
         key = lua_tonumber( L, -2 );
         if ( floor(key) != key || key < 1 )
         {
+            *max_index = -1;
             lua_pop( L,2 );
             return 0;
         }
         
-        if ( key > INT_MAX )
+        if ( key > INT_MAX ) /* array index over INT_MAX,must be object */
         {
+            *array = 0;
+            *max_index = -1;
             lua_pop( L,2 );
-            pmsg = "array key over INT_MAX";
-            return -1;
+
+            return 0;
         }
         
         if ( key > *max_index ) *max_index = (int)key;
@@ -68,7 +72,44 @@ static int is_array( lua_State *L,int index,int *array,int *max_index )
         lua_pop( L, 1 );
     }
     
+    if ( *max_index > 0 ) *array = 1;
+    
     return 0;
+}
+
+static inline JSON_Value *encode_value( lua_State *L,int index )
+{
+    JSON_Value *val = (JSON_Value *)0;
+    int ty = lua_type( L,index );
+    switch ( ty )
+    {
+        case LUA_TNIL     :
+        {
+            val = json_value_init_null();
+        }break;
+        case LUA_TBOOLEAN :
+        {
+            val = json_value_init_boolean( lua_toboolean(L,-1) );
+        }break;
+        case LUA_TSTRING  :
+        {
+            val = json_value_init_string( lua_tostring(L,-1) );
+        }break;
+        case LUA_TNUMBER  :
+        {
+            val = json_value_init_number( lua_tonumber(L,-1) );
+        }break;
+        case LUA_TTABLE   :
+        {
+            val = encode_table( L,lua_gettop(L) );
+        }break;
+        default :
+        {
+            pmsg = "table value must be nil,string,number,table,boolean";
+        }
+    }
+    
+    return val;
 }
 
 static JSON_Value *encode_invalid_key_array( lua_State *L,int index )
@@ -79,14 +120,36 @@ static JSON_Value *encode_invalid_key_array( lua_State *L,int index )
 static JSON_Value *encode_array( lua_State *L,int index,int max_index )
 {
     int cur_key = 0;
-    if ( max_index <= 0 ) return encode_invalid_key_array( L,index );
+    JSON_Status st = 0;
+    JSON_Value *val = json_value_init_array();
+    JSON_Array *root_array = json_value_get_array( val );
     
-    for ( cur_key = 0;cur_key <= max_index;cur_key ++ )
+    int stack_top = lua_gettop(L);
+    for ( cur_key = 1;cur_key <= max_index;cur_key ++ )
     {
+        JSON_Value *array_val = (JSON_Value*)0;
+        lua_rawgeti( L, -1, cur_key );
+        array_val =  encode_value( L,stack_top + 1 );
+        if ( !array_val )
+        {
+            lua_pop( L,1 );
+            json_value_free( val );
+            return 0;
+        }
         
+        st = json_array_append_value( root_array,array_val );
+        if ( JSONSuccess != st )
+        {
+            lua_pop( L,1 );
+            json_value_free( val );
+            return 0;
+        }
+
+        lua_pop( L, 1 );
     }
     
-    return 0;
+    assert( val );
+    return val;
 }
 
 static int do_encode_object( lua_State *L,JSON_Object *cur_object,int index )
@@ -94,24 +157,33 @@ static int do_encode_object( lua_State *L,JSON_Object *cur_object,int index )
     lua_pushnil( L );
     while ( lua_next( L, index ) != 0 )
     {
-        /* the key and value in -2,-1,but table maybe not in -3 */
-        char key[MAX_KEY_LEN];
+        JSON_Status st = 0;
         int ty = lua_type( L,-2 );
+        const char *pkey = (char *)0;
+        JSON_Value *obj_val = (JSON_Value *)0;
+
         switch ( ty )
         {
             case LUA_TNUMBER :
             {
+                char key[MAX_KEY_LEN];
                 double val = lua_tonumber( L,-2 );
                 if ( floor(val) == val ) /* interger key */
                     snprintf( key,MAX_KEY_LEN,"%.0f",val );
                 else
                     snprintf( key,MAX_KEY_LEN,"%f",val );
+                pkey = key;
             }break;
             case LUA_TSTRING :
             {
-                const char * val = lua_tostring( L,-2 );
-                /* still make a copy,in case lua string is binary */
-                snprintf( key,MAX_KEY_LEN,"%s",val );
+                size_t len = 0;
+                pkey = lua_tolstring( L,-2,&len );
+                if ( len <= 0 || len > MAX_KEY_LEN )
+                {
+                    pmsg = "table string key too long";
+                    lua_pop( L,2 );
+                    return -1;
+                }
             }break;
             default :
             {
@@ -123,76 +195,20 @@ static int do_encode_object( lua_State *L,JSON_Object *cur_object,int index )
                 return -1;
             }
         }
-        
-        ty = lua_type( L,-1 );
-        switch ( ty )
+        assert( pkey );
+        obj_val = encode_value( L,lua_gettop(L) );
+        if ( !obj_val )
         {
-            case LUA_TNIL     :
-            {
-                JSON_Value *val = json_value_init_null();
-                JSON_Status st = json_object_set_value( cur_object, key, val );
-                if ( JSONSuccess != st )
-                {
-                    pmsg = "encode object nil value fail";
-                    lua_pop( L,2 );
-                    return -1;
-                }
-            }break;
-            case LUA_TBOOLEAN :
-            {
-                JSON_Value *val = json_value_init_boolean( lua_toboolean(L,-1) );
-                JSON_Status st = json_object_set_value( cur_object, key, val );
-                if ( JSONSuccess != st )
-                {
-                    pmsg = "encode object boolean value fail";
-                    lua_pop( L,2 );
-                    return -1;
-                }
-            }break;
-            case LUA_TSTRING  :
-            {
-                JSON_Value *val = json_value_init_string( lua_tostring(L,-1) );
-                JSON_Status st = json_object_set_value( cur_object, key, val );
-                if ( JSONSuccess != st )
-                {
-                    pmsg = "encode object string value fail";
-                    lua_pop( L,2 );
-                    return -1;
-                }
-            }break;
-            case LUA_TNUMBER  :
-            {
-                JSON_Value *val = json_value_init_number( lua_tonumber(L,-1) );
-                JSON_Status st = json_object_set_value( cur_object, key, val );
-                if ( JSONSuccess != st )
-                {
-                    pmsg = "encode object number value fail";
-                    lua_pop( L,2 );
-                    return -1;
-                }
-            }break;
-            case LUA_TTABLE   :
-            {
-                JSON_Status st;
-                JSON_Value *val = encode_table( L,lua_gettop(L) );
-                if ( !val )
-                {
-                    lua_pop( L,2 );
-                    return -1;
-                }
-
-                st = json_object_set_value( cur_object,key,val );
-                if ( JSONSuccess != st )
-                {
-                    pmsg = "encode object table value fail";
-                    lua_pop( L,2 );
-                    return -1;
-                }
-            }break;
-            default :
-            {
-                return 0;
-            }
+            lua_pop( L,2 );
+            return -1;
+        }
+        
+        st = json_object_set_value( cur_object,pkey,obj_val );
+        if ( JSONSuccess != st )
+        {
+            pmsg = "json_object_set_value fail";
+            lua_pop( L,2 );
+            return -1;
         }
         
         lua_pop( L,1 );
