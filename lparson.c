@@ -8,9 +8,9 @@
 
 #include "parson.h"
 
-#define ARRAY_KEY    "__array"
-#define MAX_KEY_LEN  1024
-
+#define ARRAY_KEY      "__array"
+#define MAX_KEY_LEN    1024
+#define MAX_STACK_DEEP 10240
 
 static JSON_Value *encode_table( lua_State *L,int index );
 
@@ -265,7 +265,7 @@ static JSON_Value *encode_table( lua_State *L,int index )
     int array  = 0;
     int max_index  = -1;
     
-    if ( lua_gettop( L ) > 10240 )
+    if ( lua_gettop( L ) > MAX_STACK_DEEP )
     {
         pmsg = "lua parson stack overflow";
         return (JSON_Value *)0;
@@ -363,9 +363,143 @@ static int encode_to_file( lua_State *L )
     return 1;
 }
 
+static int decode_json_value( lua_State *L,const JSON_Value* js_val )
+{
+    int push_num  = 1;
+    int stack_top = lua_gettop( L );
+    if ( stack_top > MAX_STACK_DEEP )
+    {
+        pmsg = "decode stack overflow";
+        return -1;
+    }
+
+    switch ( json_value_get_type( js_val ) )
+    {
+        case JSONArray:
+        {
+            size_t index = 0;
+            JSON_Array *array = json_value_get_array( js_val );
+            size_t count = json_array_get_count( array );
+            
+            lua_createtable( L,count,0 );
+            for ( index = 0;index < count;index ++ )
+            {
+                JSON_Value *temp_value = json_array_get_value( array,index );
+                int stack_num = decode_json_value( L,temp_value );
+                if ( stack_num < 0 ) /* error */
+                {
+                    return -1;
+                }
+                else if ( stack_num > 0 )
+                {
+                    assert( 1 == stack_num );
+                    /* lua table index start from 1 */
+                    lua_rawseti( L,stack_top + 1,index + 1 );
+                }
+                /* stack_num == 0,value is nil */
+            }
+        }break;
+        case JSONObject:
+        {
+            size_t index = 0;
+            JSON_Object *object = json_value_get_object( js_val );
+            size_t count = json_object_get_count( object );
+            
+            lua_createtable( L,0,count );
+            for ( index = 0;index < count;index ++ )
+            {
+                int stack_num = -1;
+                const char *key = json_object_get_name( object,index );
+                JSON_Value *temp_value = json_object_get_value( object,key );
+                
+                lua_pushstring( L,key );
+                stack_num = decode_json_value( L,temp_value );
+                if ( stack_num < 0 ) /* error */
+                {
+                    lua_pop( L,1 ); /* pop the key */
+                    return -1;
+                }
+                else if ( stack_num > 0 )
+                {
+                    assert( 1 == stack_num );
+                    lua_rawset( L,stack_top + 1 );
+                }
+                else
+                {
+                    lua_pop( L,1 ); /* pop the key */
+                }
+            }
+        }break;
+        case JSONString:
+        {
+            const char *val = json_value_get_string( js_val );
+            lua_pushstring( L,val );
+        }break;
+        case JSONBoolean:
+        {
+            int val = json_value_get_boolean( js_val );
+            lua_pushboolean( L,val );
+        }break;
+        case JSONNumber:
+        {
+            double val = json_value_get_number( js_val );
+            /* if using lua5.1,interger is int32 */
+            if ( floor(val) == val && (val <= LUA_MAXINTEGER && val >= LUA_MININTEGER) )
+                lua_pushinteger( L,val );
+            else
+                lua_pushnumber( L,val );
+        }break;
+        case JSONNull:
+        {
+            push_num = 0;
+        }break;
+        case JSONError:
+        {
+            pmsg = "parson get error type";
+            return -1;
+        }break;
+        default :
+        {
+            pmsg = "unhandle json value type";
+            return -1;
+        }
+    }
+    
+    assert( 0 == push_num || 1 == push_num );
+    return push_num;
+}
+
 static int decode( lua_State *L )
 {
-    return 0;
+    int return_code = 0;
+    JSON_Value *val = (JSON_Value*)0;
+    const char *str = luaL_checkstring( L,1 );
+    int comment = lua_toboolean( L,2 );
+    
+    assert( str );
+    if ( comment )
+        val = json_parse_string_with_comments( str );
+    else
+        val = json_parse_string( str );
+    if ( !val )
+    {
+        pmsg = "invalid json string";
+        lua_parson_error( L );
+        return 0;
+    }
+    
+    return_code = decode_json_value( L,val );
+    json_value_free( val );
+    
+    if ( return_code < 0 )
+    {
+        lua_parson_error( L );
+        return 0;
+    }
+    
+    /* decode string "null",0 == return_code */
+    assert( 0 == return_code || 1 == return_code );
+    return return_code;
 }
 
 /* ====================LIBRARY INITIALISATION FUNCTION======================= */
