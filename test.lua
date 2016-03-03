@@ -94,3 +94,16 @@ make_array( tb.invalid_key )
 print( Json.encode( tb ) )
 vd( Json.decode( '[1,2,3,4,5,340282350000000000,{"a":null,"b":false,"c":"这是什么东西"}]' ) )
 vd( Json.decode_from_file("test.json") )
+
+local t = Json.decode_from_file("canada.json")
+print( "done ===========================================" )
+
+local index = 0
+for k,v in pairs( t.features[1].geometry.coordinates ) do
+    print( k,v )
+    vd( v )
+    index = index + 1
+    if index > 10 then
+        break
+    end
+end
