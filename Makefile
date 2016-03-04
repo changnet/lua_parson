@@ -1,4 +1,5 @@
 ##### Build defaults #####
+CC = gcc -std=gnu99
 TARGET =            lua_parson.so
 PREFIX =            /usr/local
 #CFLAGS =            -g -Wall -pedantic -fno-inline
