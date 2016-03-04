@@ -47,12 +47,11 @@ LUALIB_API void luaL_setfuncs (lua_State *L, const luaL_Reg *l, int nup) {
 
 /* ========================== lua 5.1 ======================================= */
 
-static JSON_Value *encode_table( lua_State *L,int index );
+static JSON_Value *encode_lua_value( lua_State *L,int index );
 
 static const char *pmsg = (char *)0;
-static void lua_parson_error( lua_State *L )
+static inline void lua_parson_error( lua_State *L )
 {
-    /* free memory */
     luaL_error( L,pmsg );
 }
 
@@ -67,7 +66,13 @@ static int is_array( lua_State *L,int index,int *array,int *max_index )
     
     if ( luaL_getmetafield( L,index,ARRAY_KEY ) )
     {
-        if ( lua_toboolean( L,-1 ) ) *array = 1;
+        if ( LUA_TNIL != lua_type( L,-1 ) )
+        {
+            if ( lua_toboolean( L,-1 ) )
+                *array = 1;
+            else
+                return 0;  /* it's object,use default value */
+        }
 
         lua_pop( L,1 );    /* pop metafield value */
     }
@@ -136,7 +141,7 @@ static inline JSON_Value *encode_value( lua_State *L,int index )
         }break;
         case LUA_TTABLE   :
         {
-            val = encode_table( L,lua_gettop(L) );
+            val = encode_lua_value( L,lua_gettop(L) );
         }break;
         default :
         {
@@ -216,12 +221,16 @@ static JSON_Value *encode_array( lua_State *L,int index,int max_index )
     return val;
 }
 
-static int do_encode_object( lua_State *L,JSON_Object *cur_object,int index )
+static inline JSON_Value *encode_object( lua_State *L,int index )
 {
+    JSON_Value *root_val = json_value_init_object();
+    JSON_Object *root_object = json_value_get_object( root_val );
+
     lua_pushnil( L );
     while ( lua_next( L, index ) != 0 )
     {
         JSON_Status st = 0;
+        char key[MAX_KEY_LEN];
         int ty = lua_type( L,-2 );
         const char *pkey = (char *)0;
         JSON_Value *obj_val = (JSON_Value *)0;
@@ -230,7 +239,6 @@ static int do_encode_object( lua_State *L,JSON_Object *cur_object,int index )
         {
             case LUA_TNUMBER :
             {
-                char key[MAX_KEY_LEN];
                 double val = lua_tonumber( L,-2 );
                 if ( floor(val) == val ) /* interger key */
                     snprintf( key,MAX_KEY_LEN,"%.0f",val );
@@ -246,7 +254,8 @@ static int do_encode_object( lua_State *L,JSON_Object *cur_object,int index )
                 {
                     pmsg = "table string key too long";
                     lua_pop( L,2 );
-                    return -1;
+                    json_value_free( root_val );
+                    return 0;
                 }
             }break;
             default :
@@ -256,7 +265,8 @@ static int do_encode_object( lua_State *L,JSON_Object *cur_object,int index )
                  */
                 pmsg = "table key must be a number or string";
                 lua_pop( L,2 );
-                return -1;
+                json_value_free( root_val );
+                return 0;
             }
         }
         assert( pkey );
@@ -264,43 +274,37 @@ static int do_encode_object( lua_State *L,JSON_Object *cur_object,int index )
         if ( !obj_val )
         {
             lua_pop( L,2 );
-            return -1;
+            json_value_free( root_val );
+            return 0;
         }
         
-        st = json_object_set_value( cur_object,pkey,obj_val );
+        st = json_object_set_value( root_object,pkey,obj_val );
         if ( JSONSuccess != st )
         {
             pmsg = "json_object_set_value fail";
             lua_pop( L,2 );
-            return -1;
+            json_value_free( root_val );
+            return 0;
         }
         
         lua_pop( L,1 );
     }
-    
-    return 0;
+
+    return root_val;
 }
 
-static inline JSON_Value *encode_object( lua_State *L,int index )
-{
-    JSON_Value *val = json_value_init_object();
-    JSON_Object *root_object = json_value_get_object( val );
-
-    if ( do_encode_object( L,root_object,index ) < 0 )
-    {
-        json_value_free( val );
-        return 0;
-    }
-
-    return val;
-}
-
-static JSON_Value *encode_table( lua_State *L,int index )
+static JSON_Value *encode_lua_value( lua_State *L,int index )
 {
     int array  = 0;
     int max_index  = -1;
-    
+
     if ( lua_gettop( L ) > MAX_STACK_DEEP )
+    {
+        pmsg = "lua parson encode too deep";
+        return (JSON_Value *)0;
+    }
+    
+    if ( !lua_checkstack( L,2 ) )
     {
         pmsg = "lua parson stack overflow";
         return (JSON_Value *)0;
@@ -338,7 +342,7 @@ static int encode( lua_State *L )
     pretty = lua_toboolean( L,2 );
     lua_settop( L,1 );  /* remove pretty,only table in stack now */
 
-    val = encode_table( L,1 );
+    val = encode_lua_value( L,1 );
     if ( !val )
     {
         lua_parson_error( L );
@@ -376,7 +380,7 @@ static int encode_to_file( lua_State *L )
     pretty = lua_toboolean( L,3 );
     lua_settop( L,1 );  /* remove path,pretty,only table in stack now */
 
-    val = encode_table( L,1 );
+    val = encode_lua_value( L,1 );
     if ( !val )
     {
         lua_parson_error( L );
@@ -398,13 +402,19 @@ static int encode_to_file( lua_State *L )
     return 1;
 }
 
-static int decode_json_value( lua_State *L,const JSON_Value* js_val )
+static int decode_parson_value( lua_State *L,const JSON_Value* js_val )
 {
     int push_num  = 1;
     int stack_top = lua_gettop( L );
     if ( stack_top > MAX_STACK_DEEP )
     {
-        pmsg = "decode stack overflow";
+        pmsg = "lua parson decode too deep";
+        return -1;
+    }
+
+    if ( !lua_checkstack( L,3 ) )
+    {
+        pmsg = "lua parson stack overflow";
         return -1;
     }
 
@@ -420,7 +430,7 @@ static int decode_json_value( lua_State *L,const JSON_Value* js_val )
             for ( index = 0;index < count;index ++ )
             {
                 JSON_Value *temp_value = json_array_get_value( array,index );
-                int stack_num = decode_json_value( L,temp_value );
+                int stack_num = decode_parson_value( L,temp_value );
                 if ( stack_num < 0 ) /* error */
                 {
                     return -1;
@@ -448,7 +458,7 @@ static int decode_json_value( lua_State *L,const JSON_Value* js_val )
                 JSON_Value *temp_value = json_object_get_value( object,key );
                 
                 lua_pushstring( L,key );
-                stack_num = decode_json_value( L,temp_value );
+                stack_num = decode_parson_value( L,temp_value );
                 if ( stack_num < 0 ) /* error */
                 {
                     lua_pop( L,1 ); /* pop the key */
@@ -523,7 +533,7 @@ static int decode( lua_State *L )
         return 0;
     }
     
-    return_code = decode_json_value( L,val );
+    return_code = decode_parson_value( L,val );
     json_value_free( val );
     
     if ( return_code < 0 )
@@ -556,7 +566,7 @@ static int decode_from_file( lua_State *L )
         return 0;
     }
     
-    return_code = decode_json_value( L,val );
+    return_code = decode_parson_value( L,val );
     json_value_free( val );
     
     if ( return_code < 0 )
