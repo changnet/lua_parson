@@ -1,29 +1,6 @@
 
 local Json = require "lua_parson"
 
---[[
-table to string:
-Json.encode( tb,pretty )
-Json.encode_file( "finame",tb,pretty )
-
-string to table
-Json.decode( "xxxxx",comment )
-Json.decode_file( "fname",comment )
-
-
-encode test
-1.double as key(有、没有小数点)
-
-local tb = 
-{
-    obj = 
-    {
-        789546213.2356 = "abcedfd",.
-        4353245436 = "efght",
-    }
-}
-]]
-
 function var_dump(data, max_level, prefix)
     if type(prefix) ~= "string" then
         prefix = ""
@@ -61,52 +38,35 @@ function vd(data, max_level)
 end
 
 
-local function make_array( tb )
+local function set_array( tb,flag )
     local _tb = tb or {}
     local mt = getmetatable( _tb ) or {}
-    rawset( mt,"__array",true )
+    rawset( mt,"__array",flag )
     setmetatable( _tb,mt )
-    
+
     return _tb
 end
 
-local tb = 
+local test_data = {}
+
+test_data.employees =
 {
-    ["abc"] = 999,
-    ["efg"] = "kdfajsfjieofjadaf;dsfdsakfjasdlkfja;lsf", 
-    [9999]  = 
-    {
-        ["zzz"] = 987890,
-    },
-    ["ay"] = { 9,8,5,"dfeadfea" },
-    ["sparse"] = 
-    {
-        [10] = 8787,
-    },
-    ["invalid_key"] = 
-    {
-        [88987.00998] = 98766,
-        ["dfeadfewa"] = "dfkekjdudkejdn",
-    }
+    { firstName = "Bill" , lastName = "Gates" },
+    { firstName = "George" , lastName = "Bush" },
+    { firstName = "Thomas" , lastName = "Carter" }
 }
 
-make_array( tb.invalid_key )
-print( Json.encode( tb ) )
-vd( Json.decode( '[1,2,3,4,5,340282350000000000,{"a":null,"b":false,"c":"这是什么东西"}]' ) )
-vd( Json.decode_from_file("test.json") )
+test_data.sparse = { [10] = "number ten" }
+test_data.empty_array = set_array( {},true )
+test_data.empty_object = set_array( {},false )
+test_data.force_array  = set_array( { phone1 = "123456789",phone2 = "987654321" },true )
+test_data.force_object = set_array( { "USA","UK","CH" },false )
 
-local t = {}
-t.a = t
-Json.encode(t)
--- local t = Json.decode_from_file("canada.json")
--- print( "done ===========================================" )
--- 
--- local index = 0
--- for k,v in pairs( t.features[1].geometry.coordinates ) do
---     print( k,v )
---     vd( v )
---     index = index + 1
---     if index > 10 then
---         break
---     end
--- end
+local json_str = Json.encode( test_data )  -- Json.encode( test_data,true )
+print( json_str )
+
+-- local result = Json.encode_to_file( test_data,"test.json",true )
+-- local decode_result = Json.decode_from_file("test.json")
+
+local decode_result = Json.decode( json_str )
+vd( decode_result )
