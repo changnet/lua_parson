@@ -1,12 +1,9 @@
-#include <lua.h>
-#include <lualib.h>
-#include <lauxlib.h>
-
 #include <math.h>
 #include <limits.h>
 #include <assert.h>
 
 #include "parson.h"
+#include "lparson.h"
 
 #define ARRAY_KEY      "__array"
 #define MAX_KEY_LEN    1024
@@ -21,8 +18,8 @@
     #define LUA_MININTEGER (-2147483647-1)
 #endif
 
-#ifndef luaL_setfuncs
-LUALIB_API void luaL_setfuncs (lua_State *L, const luaL_Reg *l, int nup) {
+/* this function was copy from src of lua5.3.1 */
+LUALIB_API void luaL_setfuncs_ex (lua_State *L, const luaL_Reg *l, int nup) {
   luaL_checkstack(L, nup, "too many upvalues");
   for (; l->name != NULL; l++) {  /* fill the table with given functions */
     int i;
@@ -33,7 +30,6 @@ LUALIB_API void luaL_setfuncs (lua_State *L, const luaL_Reg *l, int nup) {
   }
   lua_pop(L, nup);  /* remove upvalues */
 }
-#endif
 
 #ifndef luaL_newlibtable
     #define luaL_newlibtable(L,l)	\
@@ -42,7 +38,7 @@ LUALIB_API void luaL_setfuncs (lua_State *L, const luaL_Reg *l, int nup) {
 
 #ifndef luaL_newlib
     #define luaL_newlib(L,l)  \
-        (luaL_newlibtable(L,l), luaL_setfuncs(L,l,0))
+        (luaL_newlibtable(L,l), luaL_setfuncs_ex(L,l,0))
 #endif
 
 /* ========================== lua 5.1 ======================================= */
