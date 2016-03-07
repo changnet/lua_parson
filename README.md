@@ -12,7 +12,9 @@ Installation
  * Run 'cd lua_parson'
  * Run 'make'
  * Run 'lua test.lua' to test
- * Copy lua_parson.so to your lua project c module directory
+ * Copy lua_parson.so to your lua project's c module directory
+ 
+or embed to your project
 
 Api
 -----
@@ -24,6 +26,8 @@ encode_to_file( tb,file,pretty )
 decode( str )
 decode_from_file( file )
 ``` 
+note:
+    NOT thread-safe
 
 Array Object
 ------------
