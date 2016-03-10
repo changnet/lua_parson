@@ -1,6 +1,8 @@
 lua_parson
 ==========
 
+[![Build Status](https://travis-ci.org/changnet/lua_parson.svg?branch=master)](https://travis-ci.org/changnet/lua_parson)
+
 A lua json encode/decode c module base on parson.  
 See more about parson at https://github.com/kgabis/parson
 
@@ -93,5 +95,3 @@ See 'test.lua'
     }
 }
 ```
-
-
