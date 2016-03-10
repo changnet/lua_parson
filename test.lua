@@ -70,10 +70,3 @@ print( json_str )
 
 local decode_result = Json.decode( json_str )
 vd( decode_result )
-
-local t =
-{
-    [1] = "kdjdddjdjd"
-}
-
-vd( t )
