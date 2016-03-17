@@ -15,7 +15,7 @@ Installation
  * Run 'make'
  * Run 'make test' to test
  * Copy lua_parson.so to your lua project's c module directory
- 
+
 or embed to your project
 
 Api
@@ -28,8 +28,6 @@ encode_to_file( tb,file,pretty )
 decode( str )
 decode_from_file( file )
 ``` 
-note:
-    NOT thread-safe
 
 Array Object
 ------------
@@ -54,40 +52,40 @@ See 'test.lua'
 
 ```lua
 {
-    empty_object = 
+    empty_object =
     {
     }
-    employees = 
+    employees =
     {
-        [1] = 
+        [1] =
         {
             firstName = "Bill"
             lastName = "Gates"
         }
-        [2] = 
+        [2] =
         {
             firstName = "George"
             lastName = "Bush"
         }
-        [3] = 
+        [3] =
         {
             firstName = "Thomas"
             lastName = "Carter"
         }
     }
-    empty_array = 
+    empty_array =
     {
     }
-    force_array = 
+    force_array =
     {
         [1] = 987654321
         [2] = 123456789
     }
-    sparse = 
+    sparse =
     {
         [10] = "number ten"
     }
-    force_object = 
+    force_object =
     {
         ["3"] = "CH"
         ["2"] = "UK"

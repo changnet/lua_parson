@@ -68,5 +68,5 @@ print( json_str )
 -- local result = Json.encode_to_file( test_data,"test.json",true )
 -- local decode_result = Json.decode_from_file("test.json")
 
-local decode_result = Json.decode( json_str,false ) -- no comment 
+local decode_result = Json.decode( json_str,false ) -- no comment
 vd( decode_result )
