@@ -10,10 +10,10 @@ Installation
 ------------
 
  * Make sure lua develop environment already installed
- * Run 'git clone https://github.com/changnet/lua_parson.git'
- * Run 'cd lua_parson'
- * Run 'make'
- * Run 'make test' to test
+ * git clone https://github.com/changnet/lua_parson.git
+ * cd lua_parson
+ * make
+ * make test
  * Copy lua_parson.so to your lua project's c module directory
 
 or embed to your project

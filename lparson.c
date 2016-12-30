@@ -589,6 +589,7 @@ static const luaL_Reg lua_parson_lib[] =
 
 int luaopen_lua_parson(lua_State *L)
 {
+    luaL_checkversion( L );
     luaL_newlib(L, lua_parson_lib);
     return 1;
 }
