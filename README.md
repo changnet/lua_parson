@@ -12,7 +12,7 @@ Installation
  * Make sure lua develop environment already installed
  * git clone https://github.com/changnet/lua_parson.git
  * cd lua_parson
- * * git submodule update --init --recursive
+ * git submodule update --init --recursive
  * make
  * make test
  * Copy lua_parson.so to your lua project's c module directory or link against liblua_parsion.a

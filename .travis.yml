@@ -3,6 +3,7 @@
 language: c
 
 before_install:
+    - git submodule update --init --recursive
     - wget "http://www.lua.org/ftp/lua-5.3.2.tar.gz" && tar xzf lua-5.3.2.tar.gz && cd lua-5.3.2 && sudo make linux test install;
 
 install:
