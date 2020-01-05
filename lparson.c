@@ -351,6 +351,13 @@ static JSON_Value *encode_lua_value( lua_State *L,int index,struct lpo *option )
         encode_invalid_key_array( L,index,option );
 }
 
+/**
+ * encode a lua table to json string. a lua error will throw if any error occur
+ * @param tbl a lua table to be decode
+ * @param pretty boolean, format json string to pretty human readable or not
+ * @param sparse a max number to set boundary of sparse array
+ * @return json string
+ */
 static int encode( lua_State *L )
 {
     int pretty = 0;
@@ -390,6 +397,14 @@ static int encode( lua_State *L )
     return 1;
 }
 
+/**
+ * decode a lua table to json string. a lua error will throw if any error occur
+ * @param tbl a lua table to be decode
+ * @param file a file path to output json string
+ * @param pretty boolean, format json string to pretty human readable or not
+ * @param sparse a max number to set boundary of sparse array
+ * @return boolean
+ */
 static int encode_to_file( lua_State *L )
 {
     int pretty = 0;
@@ -494,7 +509,6 @@ static int decode_parson_value(
 
             }
 
-            int zero_cnt = 0;
             lua_createtable( L,0,count );
             for ( index = 0;index < count;index ++ )
             {
@@ -509,13 +523,11 @@ static int decode_parson_value(
                 if (is_sparse)
                 {
                     long int ikey = strtol(key, NULL, 0);
+                    // lua table key start from 1, check_type make sure it.
                     if (0 == ikey)
                     {
-                        if (zero_cnt > 0)
-                        {
-                            option->error = "can NOT convert sparse array key to int";
-                            return -1;
-                        }
+                        option->error = "can NOT convert sparse array key to int";
+                        return -1;
                     }
                     lua_pushinteger( L, ikey );
                 }
@@ -579,6 +591,13 @@ static int decode_parson_value(
     return push_num;
 }
 
+/**
+ * decode a json string to a lua table.a lua error will throw if any error occur
+ * @param a json string
+ * @param comment boolean, is the str containt comments
+ * @param sparse a max number to set boundary of sparse array
+ * @return a lua table
+ */
 static int decode( lua_State *L )
 {
     int return_code = 0;
@@ -617,6 +636,13 @@ static int decode( lua_State *L )
     return return_code;
 }
 
+/**
+ * decode a file content to a lua table.a lua error will throw if any error occur
+ * @param a json file path
+ * @param comment boolean, is the file content containt comments
+ * @param sparse a max number to set boundary of sparse array
+ * @return a lua table
+ */
 static int decode_from_file( lua_State *L )
 {
     int return_code = 0;
