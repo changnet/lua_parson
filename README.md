@@ -72,19 +72,19 @@ local tbl = { [1024] = true }
 local str = Json.encode(tbl)
 -- str = [null,null,...,true] -- 1023 null
 ```
-If sparse > 0 and any array index missing and the table has any key >= sparse,
+If sparse > 0 and any array index missing and the table has any key > sparse,
 the table's key will be convert to string and encode as a object,a field
 "__sparse" will be appended to this object.
 ```lua
 local tbl = { [1024] = true }
-local str = Json.encode(tbl, false, 1024)
+local str = Json.encode(tbl, false, 1023)
 -- str = {"1024": true, "__sparse": true}
 ```
 At decode, if sparse > 0 and "__sparse" is found at a object, it's key will be
 convert to number.
 ```lua
 -- str = {"1024": true, "__sparse": true}
-local tbl = Json.decode(str, false, 1024)
+local tbl = Json.decode(str, false, 1023)
 -- tbl = { [1024] = true }
 ```
 
@@ -94,49 +94,61 @@ Example
 See [test.lua](test.lua)
 
 ```json
-{"empty_object":{},"employees":[{"firstName":"Bill","lastName":"Gates"},{"firstName":"George","lastName":"Bush"},{"firstName":"Thomas","lastName":"Carter"}],"force_object":{"1":"USA","2":"UK","3":"CH"},"force_array":["987654321","123456789"],"sparse":[null,null,null,null,null,null,null,null,null,"number ten"],"empty_array":[]}
+{"default":{"float":{"1024.123450":"float value"},"sparse":{"1024":"world","1":"hello","__SPARSE":true},"array":[null,null,null,null,null,null,null,null,null,"number ten"]},"force_object":{"1":"USA","2":"UK","3":"CH"},"force_array":["987654321","123456789"],"empty_object":{},"employees":[{"firstName":"Bill","lastName":"Gates"},{"firstName":"George","lastName":"Bush"},{"firstName":"Thomas","lastName":"Carter"}],"empty_array":[]}
 ```
 
 ```lua
 {
-    empty_object =
+    ["empty_array"] =
     {
     }
-    employees =
+    ["force_array"] =
+    {
+        [1] = "123456789",
+        [2] = "987654321",
+    }
+    ["default"] =
+    {
+        ["sparse"] =
+        {
+            [1024] = "world",
+            [1] = "hello",
+        }
+        ["array"] =
+        {
+            [10] = "number ten",
+        }
+        ["float"] =
+        {
+            ["1024.123450"] = "float value",
+        }
+    }
+    ["force_object"] =
+    {
+        ["3"] = "CH",
+        ["2"] = "UK",
+        ["1"] = "USA",
+    }
+    ["empty_object"] =
+    {
+    }
+    ["employees"] =
     {
         [1] =
         {
-            firstName = "Bill"
-            lastName = "Gates"
+            ["firstName"] = "Bill",
+            ["lastName"] = "Gates",
         }
         [2] =
         {
-            firstName = "George"
-            lastName = "Bush"
+            ["firstName"] = "George",
+            ["lastName"] = "Bush",
         }
         [3] =
         {
-            firstName = "Thomas"
-            lastName = "Carter"
+            ["firstName"] = "Thomas",
+            ["lastName"] = "Carter",
         }
-    }
-    empty_array =
-    {
-    }
-    force_array =
-    {
-        [1] = 987654321
-        [2] = 123456789
-    }
-    sparse =
-    {
-        [10] = "number ten"
-    }
-    force_object =
-    {
-        ["3"] = "CH"
-        ["2"] = "UK"
-        ["1"] = "USA"
     }
 }
 ```

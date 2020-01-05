@@ -1,6 +1,8 @@
 #include <math.h>
+#include <stdlib.h> // strtol
 #include <limits.h>
 #include <assert.h>
+#include <string.h> // strcmp
 
 #include "parson.h"
 #include "lparson.h"
@@ -8,6 +10,7 @@
 #define ARRAY_KEY      "__array"
 #define MAX_KEY_LEN    256
 #define MAX_STACK_DEEP 1024
+#define SPARSE_KEY     "__SPARSE"
 
 /* ========================== lua 5.1 ======================================= */
 #ifndef LUA_MAXINTEGER
@@ -46,9 +49,18 @@ LUALIB_API void luaL_setfuncs_ex (lua_State *L, const luaL_Reg *l, int nup) {
 typedef const char* lpe_t; // lua_parson_error_t
 struct lpo // lua parson option
 {
-    int pretty;
     int sparse;
     lpe_t error;
+};
+
+enum ValueType
+{
+    VT_NONE   = 0,
+    VT_OBJECT = 1,
+    VT_ARRAY  = 2,
+    VT_SPARSE = 3,
+
+    VT_MAX
 };
 
 static JSON_Value *encode_lua_value(lua_State *L,int index,struct lpo *option);
@@ -58,32 +70,35 @@ static inline void lua_parson_error( lua_State *L,struct lpo *option )
     luaL_error( L,option->error );
 }
 
-static int is_array( lua_State *L,int index,int *array,int *max_index )
+/* check a lua table is object or array
+ */
+static int check_type( lua_State *L,int index,int *max_index )
 {
     double key = 0;
-    assert( array && max_index );
-
-    /* set default value */
-    *array = 0;
-    *max_index = -1;
+    int key_count = 0;
+    int vt = VT_NONE;
+    assert( max_index );
 
     if ( luaL_getmetafield( L,index,ARRAY_KEY ) )
     {
         if ( LUA_TNIL != lua_type( L,-1 ) )
         {
-            if ( lua_toboolean( L,-1 ) )
+            if ( !lua_toboolean( L,-1 ) )
             {
-                *array = 1;
+                lua_pop( L,1 ); /* pop metafield value */
+                return VT_OBJECT; /* it's object */
             }
-            else
-            {
-                lua_pop( L,1 );
-                return 0;  /* it's object,use default value */
-            }
+
+            vt = VT_ARRAY;
         }
 
-        lua_pop( L,1 );    /* pop metafield value */
+        lua_pop( L,1 ); /* pop metafield value */
     }
+
+#define RETURN_VT   \
+    lua_pop( L,2 );\
+    *max_index = -1;\
+    return vt ? vt : VT_OBJECT
 
     /* get max array index */
     lua_pushnil( L );
@@ -93,36 +108,30 @@ static int is_array( lua_State *L,int index,int *array,int *max_index )
         /* array index must be interger and >= 1 */
         if ( lua_type( L, -2 ) != LUA_TNUMBER )
         {
-            *max_index = -1;
-            lua_pop( L,2 ); /* pop both key and value */
-            return 0;
+            RETURN_VT;
         }
 
         key = lua_tonumber( L, -2 );
-        if ( floor(key) != key || key < 1 )
+        // lua table key start from 1
+        if ( key < 1 || floor(key) != key )
         {
-            *max_index = -1;
-            lua_pop( L,2 );
-            return 0;
+            RETURN_VT;
         }
 
         if ( key > INT_MAX ) /* array index over INT_MAX,must be object */
         {
-            *array = 0;
-            *max_index = -1;
-            lua_pop( L,2 );
-
-            return 0;
+            vt = VT_OBJECT;
+            RETURN_VT;
         }
 
+        key_count ++;
         if ( key > *max_index ) *max_index = (int)key;
 
         lua_pop( L, 1 );
     }
 
-    if ( *max_index > 0 ) *array = 1;
-
-    return 0;
+    return key_count == *max_index ? VT_ARRAY : VT_SPARSE;
+#undef RETURN_VT
 }
 
 static inline JSON_Value *encode_value( lua_State *L,int index,struct lpo *option )
@@ -303,7 +312,6 @@ static inline JSON_Value *encode_object( lua_State *L,int index,struct lpo *opti
 
 static JSON_Value *encode_lua_value( lua_State *L,int index,struct lpo *option )
 {
-    int array  = 0;
     int max_index  = -1;
 
     if ( lua_gettop( L ) > MAX_STACK_DEEP )
@@ -318,20 +326,29 @@ static JSON_Value *encode_lua_value( lua_State *L,int index,struct lpo *option )
         return (JSON_Value *)0;
     }
 
-    if ( is_array( L,index,&array,&max_index ) < 0 )
+    int type = check_type( L,index,&max_index );
+
+    if ( VT_OBJECT == type )
     {
-        return (JSON_Value *)0;
+        return encode_object( L,index,option );
     }
 
-    if ( array )
+    if ( VT_SPARSE == type && option->sparse && option->sparse < max_index)
     {
-        if ( max_index > 0 )
-            return encode_array( L,index,max_index,option );
-        else
-            return encode_invalid_key_array( L,index,option );
+        JSON_Value *jv = encode_object( L,index,option );
+        if ( !jv )
+        {
+            return (JSON_Value *)0;
+        }
+
+        JSON_Object *object = json_value_get_object( jv );
+        json_object_set_value(object,SPARSE_KEY,json_value_init_boolean(1));
+        return jv;
     }
 
-    return encode_object( L,index,option );
+    return max_index > 0 ?
+        encode_array( L,index,max_index,option ) :
+        encode_invalid_key_array( L,index,option );
 }
 
 static int encode( lua_State *L )
@@ -361,14 +378,9 @@ static int encode( lua_State *L )
         return 0;
     }
 
-    if ( pretty )
-    {
-        str = json_serialize_to_string_pretty( val );
-    }
-    else
-    {
-        str = json_serialize_to_string( val );
-    }
+    str = pretty ?
+        json_serialize_to_string_pretty( val ) :
+        json_serialize_to_string( val );
 
     lua_pushstring( L,str );
 
@@ -407,14 +419,9 @@ static int encode_to_file( lua_State *L )
         return 0;
     }
 
-    if ( pretty )
-    {
-        st = json_serialize_to_file_pretty( val,path );
-    }
-    else
-    {
-        st = json_serialize_to_file( val,path );
-    }
+    st = pretty ?
+        json_serialize_to_file_pretty( val,path ) :
+        json_serialize_to_file( val,path );
 
     json_value_free( val );
 
@@ -423,7 +430,8 @@ static int encode_to_file( lua_State *L )
     return 1;
 }
 
-static int decode_parson_value( lua_State *L,const JSON_Value* js_val,struct lpo *option )
+static int decode_parson_value(
+    lua_State *L,const JSON_Value* js_val,struct lpo *option )
 {
     int push_num  = 1;
     int stack_top = lua_gettop( L );
@@ -467,18 +475,54 @@ static int decode_parson_value( lua_State *L,const JSON_Value* js_val,struct lpo
         }break;
         case JSONObject:
         {
+            int is_sparse = 0;
             size_t index = 0;
             JSON_Object *object = json_value_get_object( js_val );
             size_t count = json_object_get_count( object );
 
+            if (option->sparse > 0)
+            {
+                JSON_Value *sparse_val =
+                    json_object_get_value( object,SPARSE_KEY );
+                if (sparse_val
+                    && JSONBoolean == json_value_get_type( sparse_val )
+                    && json_value_get_boolean( js_val ))
+                {
+                    count --;
+                    is_sparse = 1;
+                }
+
+            }
+
+            int zero_cnt = 0;
             lua_createtable( L,0,count );
             for ( index = 0;index < count;index ++ )
             {
                 int stack_num = -1;
                 const char *key = json_object_get_name( object,index );
+                if (is_sparse && 0 == strcmp(key, SPARSE_KEY))
+                {
+                    continue;
+                }
                 JSON_Value *temp_value = json_object_get_value( object,key );
 
-                lua_pushstring( L,key );
+                if (is_sparse)
+                {
+                    long int ikey = strtol(key, NULL, 0);
+                    if (0 == ikey)
+                    {
+                        if (zero_cnt > 0)
+                        {
+                            option->error = "can NOT convert sparse array key to int";
+                            return -1;
+                        }
+                    }
+                    lua_pushinteger( L, ikey );
+                }
+                else
+                {
+                    lua_pushstring( L,key );
+                }
                 stack_num = decode_parson_value( L,temp_value,option );
                 if ( stack_num < 0 ) /* error */
                 {
@@ -544,16 +588,14 @@ static int decode( lua_State *L )
 
     struct lpo option;
     option.error = (lpe_t)0;
+    option.sparse = luaL_optinteger( L, 3, 0);
 
     assert( str );
-    if ( comment )
-    {
-        val = json_parse_string_with_comments( str );
-    }
-    else
-    {
-        val = json_parse_string( str );
-    }
+
+    val = comment ?
+        json_parse_string_with_comments( str ) :
+        json_parse_string( str );
+
     if ( !val )
     {
         option.error = "invalid json string";
@@ -584,16 +626,14 @@ static int decode_from_file( lua_State *L )
 
     struct lpo option;
     option.error = (lpe_t)0;
+    option.sparse = luaL_optinteger( L, 3, 0);
 
     assert( path );
-    if ( comment )
-    {
-        val = json_parse_file_with_comments( path );
-    }
-    else
-    {
-        val = json_parse_file( path );
-    }
+
+    val = comment ?
+        json_parse_file_with_comments( path ) :
+        json_parse_file( path );
+
     if ( !val )
     {
         option.error = "invalid json string";

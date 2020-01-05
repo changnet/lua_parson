@@ -1,41 +1,38 @@
 
 local Json = require "lua_parson"
 
-function var_dump(data, max_level, prefix)
-    if type(prefix) ~= "string" then
-        prefix = ""
-    end
+local function var_dump(data, prefix)
+    prefix = prefix or ""
 
-    if type(data) ~= "table" then
-        print(prefix .. tostring(data))
-    else
-        print(data)
-        if max_level ~= 0 then
-            local prefix_next = prefix .. "    "
-            print(prefix .. "{")
-            for k,v in pairs(data) do
-                io.stdout:write(prefix_next .. k .. " = ")
-                if type(v) ~= "table"
-                    or (type(max_level) == "number" and max_level <= 1) then
-                    print(v)
-                else
-                    if max_level == nil then
-                        var_dump(v, nil, prefix_next)
-                    else
-                        var_dump(v, max_level - 1, prefix_next)
-                    end
-                end
+    print("")
+
+    local prefix_next = prefix .. "    "
+    print(prefix .. "{")
+    for k,v in pairs(data) do
+        if "string" == type(k) then
+            io.stdout:write(prefix_next .. "[\"" .. k .. "\"] = ")
+        else
+            io.stdout:write(prefix_next .. "[" .. k .. "] = ")
+        end
+
+        if type(v) ~= "table" then
+            if "string" == type(v) then
+                print("\"" .. v .. "\",")
+            else
+                print("" .. v .. ",")
             end
-            print(prefix .. "}")
+        else
+            var_dump(v, prefix_next)
         end
     end
+    print(prefix .. "}")
 end
 
 --[[
     eg: local b = {aaa="aaa",bbb="bbb",ccc="ccc"}
 ]]
-function vd(data, max_level)
-    var_dump(data, max_level or 20)
+local function vd(data)
+    var_dump(data)
 end
 
 
@@ -48,6 +45,35 @@ local function set_array( tb,flag )
     return _tb
 end
 
+local function assert_ex(expr, ...)
+    if not expr then
+        print(...)
+        assert(false)
+    end
+
+    return expr
+end
+
+local function assert_table(src, dst, ...)
+    for k, v in pairs(src) do
+        local dst_v = assert_ex(dst[k], k)
+        if "table" == type(v) then
+            assert_table(v, dst_v, k, ...)
+        else
+            assert_ex(v == dst_v, k, ...)
+        end
+    end
+
+    for k, v in pairs(dst) do
+        local src_v = assert_ex(src[k], k)
+        if "table" == type(v) then
+            assert_table(v, src_v, k, ...)
+        else
+            assert_ex(v == src_v, k, ...)
+        end
+    end
+end
+
 local test_data = {}
 
 test_data.employees =
@@ -57,17 +83,28 @@ test_data.employees =
     { firstName = "Thomas" , lastName = "Carter" }
 }
 
-test_data.raw_sparse = { [10] = "number ten" }
+test_data.default =
+{
+    array = {[10] = "number ten"},
+    sparse = {[1] = "hello", [1024] = "world"},
+    float = { [1024.12345] = "float value"},
+}
 test_data.empty_array = set_array( {},true )
 test_data.empty_object = set_array( {},false )
 test_data.force_array  = set_array( { phone1 = "123456789",phone2 = "987654321" },true )
 test_data.force_object = set_array( { "USA","UK","CH" },false )
 
-local json_str = Json.encode( test_data )  -- Json.encode( test_data,true )
-print( json_str )
+local io_str = Json.encode( test_data, false, 1023 )
+print( io_str )
 
--- local result = Json.encode_to_file( test_data,"test.json",true )
--- local decode_result = Json.decode_from_file("test.json")
+local file_ok = Json.encode_to_file( test_data, "test.json", true, 1023 )
 
-local decode_result = Json.decode( json_str,false ) -- no comment
-vd( decode_result )
+local file_ctx = Json.decode_from_file("test.json", true, 1023)
+
+local io_ctx = Json.decode( io_str, false, 1023 ) -- no comment
+vd( io_ctx )
+
+assert(file_ok)
+
+assert_table(io_ctx, file_ctx)
+-- assert_table(test_data, file_ctx)
