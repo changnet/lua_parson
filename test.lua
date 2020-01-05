@@ -15,7 +15,8 @@ function var_dump(data, max_level, prefix)
             print(prefix .. "{")
             for k,v in pairs(data) do
                 io.stdout:write(prefix_next .. k .. " = ")
-                if type(v) ~= "table" or (type(max_level) == "number" and max_level <= 1) then
+                if type(v) ~= "table"
+                    or (type(max_level) == "number" and max_level <= 1) then
                     print(v)
                 else
                     if max_level == nil then
@@ -56,7 +57,7 @@ test_data.employees =
     { firstName = "Thomas" , lastName = "Carter" }
 }
 
-test_data.sparse = { [10] = "number ten" }
+test_data.raw_sparse = { [10] = "number ten" }
 test_data.empty_array = set_array( {},true )
 test_data.empty_object = set_array( {},false )
 test_data.force_array  = set_array( { phone1 = "123456789",phone2 = "987654321" },true )

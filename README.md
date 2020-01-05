@@ -3,7 +3,7 @@ lua_parson
 
 [![Build Status](https://travis-ci.org/changnet/lua_parson.svg?branch=master)](https://travis-ci.org/changnet/lua_parson)
 
-A lua json encode/decode c module base on parson.  
+A lua json encode/decode c module base on parson.
 See more about parson at https://github.com/kgabis/parson
 
 Installation
@@ -21,15 +21,38 @@ Api
 -----
 
 ```lua
-encode( tb,pretty )
-encode_to_file( tb,file,pretty )
+-- encode a lua table to json string. a lua error will throw if any error occur
+-- @param tbl a lua table to be decode
+-- @param pretty boolean, format json string to pretty human readable or not
+-- @param sparse a max number to set boundary of sparse array
+-- @return json string
+encode(tbl, pretty, sparse)
 
-decode( str )
-decode_from_file( file )
-``` 
+-- decode a lua table to json string. a lua error will throw if any error occur
+-- @param tbl a lua table to be decode
+-- @param file a file path to output json string
+-- @param pretty boolean, format json string to pretty human readable or not
+-- @param sparse a max number to set boundary of sparse array
+-- @return boolean
+encode_to_file(tbl, file, pretty, sparse)
 
-Array Object
-------------
+-- decode a json string to a lua table.a lua error will throw if any error occur
+-- @param a json string
+-- @param comment boolean, is the str containt comments
+-- @param sparse a max number to set boundary of sparse array
+-- @return a lua table
+decode(str, comment, sparse)
+
+-- decode a file content to a lua table.a lua error will throw if any error occur
+-- @param a json file path
+-- @param comment boolean, is the file content containt comments
+-- @param sparse a max number to set boundary of sparse array
+-- @return a lua table
+decode_from_file(file, comment, sparse)
+```
+
+Array or Object
+---------------
 
  * If a table has only integer key,we consider it an array.otherwise is's an object.
  * If a table's metatable has field '__array' and it's value is true,consider the table an array
@@ -37,13 +60,38 @@ Array Object
  * Empty table is an object
 
 Note:
- * If a array has illeage index(string or number key),it's key will be replace with index 1..n when encode
+ * If a array has illeage index(string or float key),it's key will be replace with index 1..n when encode
  * A sparse array will be filled with 'null' when encode
+
+Sparse Array
+------------
+In default, lua_parson will not check for sparse array(sparse = 0).It simply
+created a large array if there a a large key in lua table, like:
+```lua
+local tbl = { [1024] = true }
+local str = Json.encode(tbl)
+-- str = [null,null,...,true] -- 1023 null
+```
+If sparse > 0 and any array index missing and the table has any key >= sparse,
+the table's key will be convert to string and encode as a object,a field
+"__sparse" will be appended to this object.
+```lua
+local tbl = { [1024] = true }
+local str = Json.encode(tbl, false, 1024)
+-- str = {"1024": true, "__sparse": true}
+```
+At decode, if sparse > 0 and "__sparse" is found at a object, it's key will be
+convert to number.
+```lua
+-- str = {"1024": true, "__sparse": true}
+local tbl = Json.decode(str, false, 1024)
+-- tbl = { [1024] = true }
+```
 
 Example
 -------
 
-See 'test.lua'  
+See [test.lua](test.lua)
 
 ```json
 {"empty_object":{},"employees":[{"firstName":"Bill","lastName":"Gates"},{"firstName":"George","lastName":"Bush"},{"firstName":"Thomas","lastName":"Carter"}],"force_object":{"1":"USA","2":"UK","3":"CH"},"force_array":["987654321","123456789"],"sparse":[null,null,null,null,null,null,null,null,null,"number ten"],"empty_array":[]}
