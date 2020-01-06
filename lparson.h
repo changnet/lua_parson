@@ -2,14 +2,15 @@
 #define __LPARSON_H__
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 #include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
 
-extern int luaopen_lua_parson(lua_State *L);
+    extern int luaopen_lua_parson(lua_State *L);
 
 #ifdef __cplusplus
 }
