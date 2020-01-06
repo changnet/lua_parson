@@ -1,5 +1,5 @@
 #include <math.h>
-#include <stdlib.h> // strtol
+#include <stdlib.h> // strtoll
 #include <limits.h>
 #include <assert.h>
 #include <string.h> // strcmp
@@ -72,9 +72,9 @@ static inline void lua_parson_error( lua_State *L,struct lpo *option )
 
 /* check a lua table is object or array
  */
-static int check_type( lua_State *L,int index,int *max_index )
+static int check_type( lua_State *L,int index,lua_Integer *max_index )
 {
-    double key = 0;
+    lua_Integer key = 0;
     int key_count = 0;
     int vt = VT_NONE;
     assert( max_index );
@@ -111,21 +111,22 @@ static int check_type( lua_State *L,int index,int *max_index )
             RETURN_VT;
         }
 
-        key = lua_tonumber( L, -2 );
+#if LUA_VERSION_NUM >= 503 // lua 5.3 has int64
+        if (!lua_isinteger(L, -2))
+        {
+            RETURN_VT;
+        }
+        key = lua_tointeger( L, -2 );
+#else
+        key = lua_tointeger( L, -2 );
         // lua table key start from 1
-        if ( key < 1 || floor(key) != key )
+        if ( key < 1 || floor(lua_tonumber(L, -2)) != key )
         {
             RETURN_VT;
         }
-
-        if ( key > INT_MAX ) /* array index over INT_MAX,must be object */
-        {
-            vt = VT_OBJECT;
-            RETURN_VT;
-        }
-
+#endif
         key_count ++;
-        if ( key > *max_index ) *max_index = (int)key;
+        if ( key > *max_index ) *max_index = key;
 
         lua_pop( L, 1 );
     }
@@ -312,7 +313,7 @@ static inline JSON_Value *encode_object( lua_State *L,int index,struct lpo *opti
 
 static JSON_Value *encode_lua_value( lua_State *L,int index,struct lpo *option )
 {
-    int max_index  = -1;
+    lua_Integer max_index  = -1;
 
     if ( lua_gettop( L ) > MAX_STACK_DEEP )
     {
@@ -522,7 +523,7 @@ static int decode_parson_value(
 
                 if (is_sparse)
                 {
-                    long int ikey = strtol(key, NULL, 0);
+                    long long int ikey = strtoll(key, NULL, 0);
                     // lua table key start from 1, check_type make sure it.
                     if (0 == ikey)
                     {

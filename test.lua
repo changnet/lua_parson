@@ -88,6 +88,8 @@ test_data.default =
     array = {[10] = "number ten"},
     sparse = {[1] = "hello", [1024] = "world"},
     float = { [1024.12345] = "float value"},
+    -- large = {[9223372036854775807] = 9223372036854775807},
+    large = {[987654321123] = 987654321123},
 }
 test_data.empty_array = set_array( {},true )
 test_data.empty_object = set_array( {},false )

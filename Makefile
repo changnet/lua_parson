@@ -3,7 +3,7 @@ CC = gcc -std=gnu99
 TARGET_SO =         lua_parson.so
 TARGET_A  =         liblua_parson.a
 
-#CFLAGS =            -g -Wall -pedantic -fno-inline
+# CFLAGS =            -g -Wall -pedantic -fno-inline -Iparson
 CFLAGS =            -O3 -Wall -pedantic -DNDEBUG -Iparson
 
 # add submodule dir to make
