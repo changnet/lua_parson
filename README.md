@@ -28,9 +28,9 @@ Api
 -- @return json string
 encode(tbl, pretty, sparse)
 
--- decode a lua table to json string. a lua error will throw if any error occur
+-- encode a lua table to json string. a lua error will throw if any error occur
 -- @param tbl a lua table to be decode
--- @param file a file path to output json string
+-- @param file a file path that json string will be written in
 -- @param pretty boolean, format json string to pretty human readable or not
 -- @param sparse a max number to set boundary of sparse array
 -- @return boolean
