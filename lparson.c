@@ -359,7 +359,7 @@ static JSON_Value *encode_lua_value(lua_State *L, int index, struct lpo *option)
         return jv;
     }
 
-    return max_index > 0 ? encode_array(L, index, max_index, option)
+    return max_index > 0 ? encode_array(L, index, (int)max_index, option)
                          : encode_invalid_key_array(L, index, option);
 }
 
@@ -387,7 +387,7 @@ static int encode(lua_State *L)
     }
 
     pretty        = lua_toboolean(L, 2);
-    option.sparse = luaL_optinteger(L, 3, 0);
+    option.sparse = (int)luaL_optinteger(L, 3, 0);
     lua_settop(L, 1); /* remove other parameters,only table in stack now */
 
     val = encode_lua_value(L, 1, &option);
@@ -435,7 +435,7 @@ static int encode_to_file(lua_State *L)
 
     path          = luaL_checkstring(L, 2);
     pretty        = lua_toboolean(L, 3);
-    option.sparse = luaL_optinteger(L, 4, 0);
+    option.sparse = (int)luaL_optinteger(L, 4, 0);
     lua_settop(L, 1); /* remove path,pretty,only table in stack now */
 
     val = encode_lua_value(L, 1, &option);
@@ -480,7 +480,7 @@ static int decode_parson_value(lua_State *L, const JSON_Value *js_val,
         JSON_Array *array = json_value_get_array(js_val);
         size_t count      = json_array_get_count(array);
 
-        lua_createtable(L, count, 0);
+        lua_createtable(L, (int)count, 0);
         for (index = 0; index < count; index++)
         {
             JSON_Value *temp_value = json_array_get_value(array, index);
@@ -517,7 +517,7 @@ static int decode_parson_value(lua_State *L, const JSON_Value *js_val,
             }
         }
 
-        lua_createtable(L, 0, count);
+        lua_createtable(L, 0, (int)count);
         for (index = 0; index < count; index++)
         {
             int stack_num   = -1;
@@ -578,7 +578,7 @@ static int decode_parson_value(lua_State *L, const JSON_Value *js_val,
         double val = json_value_get_number(js_val);
         /* if using lua5.1,interger is int32 */
         if (floor(val) == val && (val <= LUA_MAXINTEGER && val >= LUA_MININTEGER))
-            lua_pushinteger(L, val);
+            lua_pushinteger(L, (lua_Integer)val);
         else
             lua_pushnumber(L, val);
     }
@@ -621,7 +621,7 @@ static int decode(lua_State *L)
 
     struct lpo option;
     option.error  = (lpe_t)0;
-    option.sparse = luaL_optinteger(L, 3, 0);
+    option.sparse = (int)luaL_optinteger(L, 3, 0);
 
     assert(str);
 
@@ -665,7 +665,7 @@ static int decode_from_file(lua_State *L)
 
     struct lpo option;
     option.error  = (lpe_t)0;
-    option.sparse = luaL_optinteger(L, 3, 0);
+    option.sparse = (int)luaL_optinteger(L, 3, 0);
 
     assert(path);
 
