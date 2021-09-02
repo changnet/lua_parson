@@ -24,131 +24,135 @@ Api
 -- encode a lua table to json string. a lua error will throw if any error occur
 -- @param tbl a lua table to be decode
 -- @param pretty boolean, format json string to pretty human readable or not
--- @param sparse a max number to set boundary of sparse array
+-- @param array_opt number, option to set the table as array or object
 -- @return json string
-encode(tbl, pretty, sparse)
+encode(tbl, pretty, array_opt)
 
 -- encode a lua table to json string. a lua error will throw if any error occur
 -- @param tbl a lua table to be decode
 -- @param file a file path that json string will be written in
 -- @param pretty boolean, format json string to pretty human readable or not
--- @param sparse a max number to set boundary of sparse array
+-- @param array_opt number, option to set the table as array or object
 -- @return boolean
-encode_to_file(tbl, file, pretty, sparse)
+encode_to_file(tbl, file, pretty, array_opt)
 
 -- decode a json string to a lua table.a lua error will throw if any error occur
 -- @param a json string
 -- @param comment boolean, is the str containt comments
--- @param sparse a max number to set boundary of sparse array
+-- @param array_opt number, enable integer key convertion if set
 -- @return a lua table
-decode(str, comment, sparse)
+decode(str, comment, array_opt)
 
 -- decode a file content to a lua table.a lua error will throw if any error occur
 -- @param a json file path
 -- @param comment boolean, is the file content containt comments
--- @param sparse a max number to set boundary of sparse array
+-- @param array_opt number, enable integer key convertion if set
 -- @return a lua table
-decode_from_file(file, comment, sparse)
+decode_from_file(file, comment, array_opt)
 ```
 
 Array or Object
 ---------------
 
- * If a table has only integer key,we consider it an array.otherwise is's an object.
- * If a table's metatable has field '__array' and it's value is true,consider the table an array
- * If a table's metatable has field '__array' and it's value is false,consider the table an object
- * Empty table is an object
+* No array_opt(no array_opt pass to encode、decode and no `__array_opt` in metatable)
+    * Empty table is an object
+    * If a table has only integer keys, consider it an array
+
+* Detect by array_opt
+    * If a table's metatable has field `__array_opt = 1` consider it an array
+    * If a table's metatable has field `__array_opt = 0` consider it an object
+    * `modf(array_opt)` the integral part means the table is array if table max
+    key <= this value. The fractional part means table is array when
+    (table size)/(max key) >= this value.
+    ```lua
+    -- array_opt = 8.6
+
+    -- max key 7 <= 8, it encode as array
+    local tbl = {[7] = 1}
+
+    -- table size = 6, max key = 10, 6/10 >= 0.6, it encode as array
+    local tbl = {1,2,3,4,5, [10] = 10}
+
+    -- max key 1024 > 8 and table size = 1, 1/1024 < 0.6, it encode as object
+    local tbl = {[1024] = 1}
+    ```
+
 
 Note:
- * If a array has illeage index(string or float key),it's key will be replace with index 1..n when encode
- * A sparse array will be filled with 'null' when encode
 
-Sparse Array
-------------
-In default, lua_parson will not check for sparse array(sparse = 0).It simply
-created a large array if there a a large key in lua table, like:
+If a table is converted to an object, a field `__array_opt` will be append to the
+object. When decode, if `__array_opt` is found in the object, it's number key will
+be converted to number. e.g.
 ```lua
-local tbl = { [1024] = true }
-local str = Json.encode(tbl)
--- str = [null,null,...,true] -- 1023 null
+local tbl = {
+    [1024] = "abc",
+}
 ```
-If sparse > 0 and any array index missing and the table has any key > sparse,
-the table's key will be convert to string and encode as a object,a field
-"__sparse" will be appended to this object.
+to json
+```json
+{"1024": "abc", "__array_opt": 0}
+```
+to lua again
 ```lua
-local tbl = { [1024] = true }
-local str = Json.encode(tbl, false, 1023)
--- str = {"1024": true, "__sparse": true}
+local tbl = {
+    [1024] = "abc",
+}
+
+-- not
+-- local tbl = {
+--     ["1024"] = "abc",
+-- }
 ```
-At decode, if sparse > 0 and "__sparse" is found at a object, it's key will be
-convert to number.
-```lua
--- str = {"1024": true, "__sparse": true}
-local tbl = Json.decode(str, false, 1023)
--- tbl = { [1024] = true }
-```
+This feature allows convertion between json and lua table.
 
 Example
 -------
 
 See [test.lua](test.lua)
 
+* normal
 ```json
-{"default":{"float":{"1024.123450":"float value"},"sparse":{"1024":"world","1":"hello","__SPARSE":true},"array":[null,null,null,null,null,null,null,null,null,"number ten"]},"force_object":{"1":"USA","2":"UK","3":"CH"},"force_array":["987654321","123456789"],"empty_object":{},"employees":[{"firstName":"Bill","lastName":"Gates"},{"firstName":"George","lastName":"Bush"},{"firstName":"Thomas","lastName":"Carter"}],"empty_array":[]}
+[1,"a",true,2.5,false,987654321123]
 ```
-
 ```lua
 {
-    ["empty_array"] =
-    {
-    }
-    ["force_array"] =
-    {
-        [1] = "123456789",
-        [2] = "987654321",
-    }
-    ["default"] =
-    {
-        ["sparse"] =
-        {
-            [1024] = "world",
-            [1] = "hello",
-        }
-        ["array"] =
-        {
-            [10] = "number ten",
-        }
-        ["float"] =
-        {
-            ["1024.123450"] = "float value",
-        }
-    }
-    ["force_object"] =
-    {
-        ["3"] = "CH",
-        ["2"] = "UK",
-        ["1"] = "USA",
-    }
-    ["empty_object"] =
-    {
-    }
-    ["employees"] =
-    {
-        [1] =
-        {
-            ["firstName"] = "Bill",
-            ["lastName"] = "Gates",
-        }
-        [2] =
-        {
-            ["firstName"] = "George",
-            ["lastName"] = "Bush",
-        }
-        [3] =
-        {
-            ["firstName"] = "Thomas",
-            ["lastName"] = "Carter",
-        }
-    }
+    [1] = 1,
+    [2] = "a",
+    [3] = true,
+    [4] = 2.5,
+    [5] = false,
+    [6] = 987654321123,
+}
+```
+
+* table to json(array) to table
+```lua
+{
+    phone1 = "123456789",
+    phone2 = "987654321"
+}
+```
+```json
+["123456789","987654321"]
+```
+```lua
+{
+    [1] = "123456789",
+    [2] = "987654321",
+}
+```
+
+* table to json(object) to table
+```lua
+{"AA","BB","CC"}
+```
+```json
+{"1":"AA","2":"BB","3":"CC","__array_opt":0}
+```
+```lua
+{
+    [1] = "AA",
+    [2] = "BB",
+    [3] = "CC",
 }
 ```
