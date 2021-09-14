@@ -142,6 +142,7 @@ static int check_type(lua_State *L, int index, lua_Integer *max_index, double op
     return 1;
 
 NO_MAX_KEY:
+    lua_pop(L, 2);
     if (1. == opt)
     {
         // force encode as array, no max key found

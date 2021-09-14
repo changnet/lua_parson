@@ -225,3 +225,13 @@ str = Json.encode(raw_tbl, false, 8.6)
 tbl = Json.decode(str, false, 0)
 assert_table(raw_tbl, tbl)
 assert(str == raw_str)
+
+-- test stack pop in check_type
+raw_str = '{"object":{"name":"lua"}}'
+raw_tbl = {
+    object = { name = "lua" }
+}
+str = Json.encode(raw_tbl)
+tbl = Json.decode(str)
+assert_table(raw_tbl, tbl)
+assert(str == raw_str)
