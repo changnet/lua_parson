@@ -39,7 +39,7 @@ end
 local function set_array(tb, opt)
     local _tb = tb or {}
     local mt = getmetatable( _tb ) or {}
-    rawset( mt,"__array_opt", opt)
+    rawset( mt,"__opt", opt)
     setmetatable( _tb,mt )
 
     return _tb
@@ -80,7 +80,6 @@ local tbl
 local raw_str
 local raw_tbl
 
-
 -- no convert, large sparse array [null, null, null, ..., 1]
 raw_str = ""
 for i = 1, 1023 do raw_str = raw_str .. "null," end
@@ -111,13 +110,55 @@ raw_tbl = {
     ["true"] = true,
     ["false"] = false,
     ["987654321123"] = 987654321123,
-    ["__array_opt"] = 1. -- special key test
+    ["__opt"] = 1. -- special key test
 }
 str = Json.encode(raw_tbl)
 tbl = Json.decode(str)
 assert_table(raw_tbl, tbl)
 -- key sequence are random, can not test it
 -- assert(str == raw_str)
+
+-- for no key convert, then has key convert, normal object
+raw_str = '{"a":{"10006":1,"__opt":0}}'
+raw_tbl = {
+    a = {
+        [10006] = 1
+    }
+}
+str = Json.encode(raw_tbl, false, 8.6)
+tbl = Json.decode(str, false, 0) -- must set the array_opt
+assert_table(raw_tbl, tbl)
+print(str)
+assert(str == raw_str)
+
+-- test float key、negative key convert
+raw_str = '{"1.500000":{"10068":{"-99":{"-9.800000":6,"__opt":0},"__opt":0},"__opt":0},"__opt":0}'
+raw_tbl = {
+    [1.5] = {
+        [10068] = {
+            [-99] = {
+                [-9.8] = 6
+            }
+        }
+    }
+}
+str = Json.encode(raw_tbl, false, 8.6)
+tbl = Json.decode(str, false, 0) -- must set the array_opt
+assert_table(raw_tbl, tbl)
+assert(str == raw_str)
+
+if _VERSION >= "Lua 5.3" then
+    raw_str = '{"-9223372036854775808":{"9223372036854775807":6,"__opt":0},"__opt":0}'
+    raw_tbl = {
+        [math.mininteger] = {
+            [math.maxinteger] = 6
+        }
+    }
+    str = Json.encode(raw_tbl, false, 8.6)
+    tbl = Json.decode(str, false, 0) -- must set the array_opt
+    assert_table(raw_tbl, tbl)
+    assert(str == raw_str)
+end
 
 -- empty table, normal object
 raw_str = '{}'
@@ -136,7 +177,7 @@ assert_table(raw_tbl, tbl)
 assert(str == raw_str)
 
 -- force empty object
-raw_str = '{"__array_opt":0}'
+raw_str = '{}'
 raw_tbl = set_array({}, 0)
 str = Json.encode(raw_tbl)
 tbl = Json.decode(str, false, 0) -- must set the array_opt
@@ -144,7 +185,7 @@ assert_table(raw_tbl, tbl)
 assert(str == raw_str)
 
 -- force array
-raw_str = '{"__array_opt":0}'
+raw_str = ''
 raw_tbl = set_array({ phone1 = "123456789",phone2 = "987654321" },1)
 str = Json.encode(raw_tbl)
 tbl = Json.decode(str)
@@ -155,7 +196,7 @@ assert(tbl[1] == "123456789" or tbl[2] == "123456789")
 -- assert(str == raw_str)
 
 -- force object
-raw_str = '{"1":"AA","2":"BB","3":"CC","__array_opt":0}'
+raw_str = '{"1":"AA","2":"BB","3":"CC","__opt":0}'
 raw_tbl = set_array({"AA","BB","CC"}, 0)
 str = Json.encode(raw_tbl)
 tbl = Json.decode(str, false, 0) -- must set the array_opt
@@ -191,7 +232,7 @@ assert_table(raw_tbl, tbl)
 assert(str == raw_str)
 
 -- auto check object by metatable array_opt, integer part
-raw_str = '{"96":1,"__array_opt":0}'
+raw_str = '{"96":1,"__opt":0}'
 raw_tbl = set_array({[96] = 1}, 8.6)
 str = Json.encode(raw_tbl)
 tbl = Json.decode(str, false, 0)
@@ -199,7 +240,7 @@ assert_table(raw_tbl, tbl)
 assert(str == raw_str)
 
 -- auto check object by metatable array_opt, fractional part
-raw_str = '{"1":1,"2":1,"3":1,"4":1,"10":1,"__array_opt":0}'
+raw_str = '{"1":1,"2":1,"3":1,"4":1,"10":1,"__opt":0}'
 raw_tbl = set_array({
     [1] = 1,
     [2] = 1,
@@ -213,7 +254,7 @@ assert_table(raw_tbl, tbl)
 assert(str == raw_str)
 
 -- auto check by array_opt
-raw_str = '{"1":1,"2":1,"3":1,"4":1,"10":1,"__array_opt":0}'
+raw_str = '{"1":1,"2":1,"3":1,"4":1,"10":1,"__opt":0}'
 raw_tbl = {
     [1] = 1,
     [2] = 1,

@@ -22,50 +22,50 @@ Api
 
 ```lua
 -- encode a lua table to json string. a lua error will throw if any error occur
--- @param tbl a lua table to be decode
+-- @param tbl a lua table to be encode
 -- @param pretty boolean, format json string to pretty human readable or not
--- @param array_opt number, option to set the table as array or object
+-- @param opt number, option to set the table as array or object
 -- @return json string
-encode(tbl, pretty, array_opt)
+encode(tbl, pretty, opt)
 
 -- encode a lua table to json string. a lua error will throw if any error occur
--- @param tbl a lua table to be decode
+-- @param tbl a lua table to be encode
 -- @param file a file path that json string will be written in
 -- @param pretty boolean, format json string to pretty human readable or not
--- @param array_opt number, option to set the table as array or object
+-- @param opt number, option to set the table as array or object
 -- @return boolean
-encode_to_file(tbl, file, pretty, array_opt)
+encode_to_file(tbl, file, pretty, opt)
 
 -- decode a json string to a lua table.a lua error will throw if any error occur
 -- @param a json string
 -- @param comment boolean, is the str containt comments
--- @param array_opt number, enable integer key convertion if set
+-- @param opt number, enable integer key convertion if set
 -- @return a lua table
-decode(str, comment, array_opt)
+decode(str, comment, opt)
 
 -- decode a file content to a lua table.a lua error will throw if any error occur
 -- @param a json file path
 -- @param comment boolean, is the file content containt comments
--- @param array_opt number, enable integer key convertion if set
+-- @param opt number, enable integer key convertion if set
 -- @return a lua table
-decode_from_file(file, comment, array_opt)
+decode_from_file(file, comment, opt)
 ```
 
 Array or Object
 ---------------
 
-* No array_opt(no array_opt pass to encode、decode and no `__array_opt` in metatable)
+* No opt(no opt pass to encode、decode and no `__opt` in metatable)
     * Empty table is an object
     * If a table has only integer keys, consider it an array
 
-* Detect by array_opt
-    * If a table's metatable has field `__array_opt = 1` consider it an array
-    * If a table's metatable has field `__array_opt = 0` consider it an object
-    * `modf(array_opt)` the integral part means the table is array if table max
+* Detect by opt
+    * If a table's metatable has field `__opt = 1` consider it an array
+    * If a table's metatable has field `__opt = 0` consider it an object
+    * `modf(opt)` the integral part means the table is array if table max
     key <= this value. The fractional part means table is array when
     (table size)/(max key) >= this value.
     ```lua
-    -- array_opt = 8.6
+    -- opt = 8.6
 
     -- max key 7 <= 8, it encode as array
     local tbl = {[7] = 1}
@@ -80,8 +80,8 @@ Array or Object
 
 Note:
 
-If a table is converted to an object, a field `__array_opt` will be append to the
-object. When decode, if `__array_opt` is found in the object, it's number key will
+If a table is converted to an object, a field `__opt` will be append to the
+object. When decode, if `__opt` is found in the object, it's number key will
 be converted to number. e.g.
 ```lua
 local tbl = {
@@ -90,7 +90,7 @@ local tbl = {
 ```
 to json
 ```json
-{"1024": "abc", "__array_opt": 0}
+{"1024": "abc", "__opt": 0}
 ```
 to lua again
 ```lua
@@ -147,7 +147,7 @@ See [test.lua](test.lua)
 {"AA","BB","CC"}
 ```
 ```json
-{"1":"AA","2":"BB","3":"CC","__array_opt":0}
+{"1":"AA","2":"BB","3":"CC","__opt":0}
 ```
 ```lua
 {
