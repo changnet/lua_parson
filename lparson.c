@@ -386,7 +386,7 @@ static JSON_Value *encode_lua_value(lua_State *L, int index, struct lpo *option)
     int type = check_type(L, index, &max_index, option->opt);
     if (0 == type)
     {
-        return encode_object(L, index, max_index, option);
+        return encode_object(L, index, (int)max_index, option);
     }
 
     return max_index > 0 ? encode_array(L, index, (int)max_index, option)
